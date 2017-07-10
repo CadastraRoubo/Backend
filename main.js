@@ -1,18 +1,17 @@
 /**
  * Created by mushr on 20/06/2017.
+ *
+ * https://gist.github.com/Turox/49bcfc49a1ba70873da31a4f92debed8
  */
 let express = require('express');
 let mongoose = require('mongoose');
-let passport = require('passport');
 let app = express();
 let graph = require('fbgraph');
 
 app.use(require('body-parser').urlencoded({ extended: true }));
-app.use(passport.initialize());
 
 
 mongoose.connect('mongodb://localhost/crimeapp');
-
 
 app.get('/crimes', function(req,res){
     console.log('/crimes');
