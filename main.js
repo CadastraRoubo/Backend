@@ -3,53 +3,16 @@
  */
 let express = require('express');
 let mongoose = require('mongoose');
-let bodyParser = require('body-parser');
 let passport = require('passport');
 let app = express();
-let FacebookStrategy = require('passport-facebook').Strategy;
+let graph = require('fbgraph');
 
-app.use(bodyParser.urlencoded({extended: true}));
-
-function authenticationMiddleware () {
-    return function (req, res, next) {
-        if (req.isAuthenticated()) {
-            return next()
-        }
-        res.redirect('/');
-    }
-}
-
-passport.use(new FacebookStrategy({
-        clientID: 113508735925978,
-        clientSecret: 'b1f1a162e23b803d5a17e08f364bd8bc',
-        callbackURL: "http://192.168.0.100:3000/auth/facebook/callback",
-        profileFields: ['id', 'displayName', 'email']
-    },
-    function(accessToken, refreshToken, profile, cb) {
-        /*User.findOrCreate({ facebookId: profile.id }, function (err, user) {
-            return cb(err, user);
-        });*/
-        let User = mongoose.model('User', require('./model/user'));
-        User.update({facebook_id: profile.id}, {name: profile.displayName, email: profile.email}, {upsert: true, setDefaultsOnInsert: true});
-        console.log('abc')
-    }
-));
-
-app.get('/auth/facebook',
-    passport.authenticate('facebook'));
-
-app.get('/auth/facebook/callback',
-    passport.authenticate('facebook', { failureRedirect: '/login' }),
-    function(req, res) {
-        // Successful authentication, redirect home.
-        res.redirect('/');
-    });
-
+app.use(require('body-parser').urlencoded({ extended: true }));
+app.use(passport.initialize());
 
 
 mongoose.connect('mongodb://localhost/crimeapp');
 
-//app.use('/auth', authenticationMiddleware());
 
 app.get('/crimes', function(req,res){
     console.log('/crimes');
@@ -62,30 +25,99 @@ app.get('/crimes', function(req,res){
 });
 
 app.use('/auth/', function(req,res,next){
-    console.log('Testa auth');
-    next();
-});
-
-app.get('/auth/teste', function (req,res) {
-   res.send('Essa pagina e protegida');
+    let access_token = req.header('access-token');
+    let user_id = req.header('user-id');
+    //https://stackoverflow.com/questions/12065492/rest-api-for-website-which-uses-facebook-for-authentication?answertab=votes#tab-top
+    graph.get("/me?access_token=" + access_token, function(err, profile) {
+        if(profile.id === user_id) {
+            let User = mongoose.model('User', require('./model/user'));
+            //weorkweoprktrotgmo
+            User.update({facebook_id: profile.id}, {name: profile.name, email: profile.email}, {
+                upsert: true,
+                setDefaultsOnInsert: true
+            });
+            req.user = {
+                facebook_id: profile.id,
+                name: profile.name
+            };
+            next();
+        }else{
+            res.status(401);
+            res.send('Unauthorized');
+        }
+    });
 });
 
 app.post('/auth/crime', function(req,res){
     let Crime = mongoose.model('Crime', require('./model/crime'));
-    let crime = new Crime({lat: req.body.lat,lng: req.body.lng,date: req.body.date,type: req.body.type});
+    let crime = new Crime(
+        {lat: req.body.lat,
+            lng: req.body.lng,
+            date: req.body.date,
+            type: req.body.type,
+            desc: req.body.desc,
+            facebook_id: req.user.facebook_id,
+            });
     crime.save(function(err){
         if(err){
             console.log(err);
             res.send('err');
         }else{
-            res.send('ok');
+            res.send(JSON.stringify(crime));
+        }
+    });
+});
+
+app.delete('/auth/crime/:crime_id', function(req,res){
+    let Crime = mongoose.model('Crime', require('./model/crime'));
+    let crime = Crime.findOne({_id: req.params.crime_id}, function(err, crime){
+        if(crime){
+            if(crime.facebook_id === req.user.facebook_id){
+                crime.remove(function(err){
+                    if(err){
+                        res.status(500);
+                        res.send('Internal error');
+                    }else{
+                        res.send('deleted');
+                    }
+                })
+            }else{
+                res.status(401);
+                res.send('This is not your crime');
+            }
+        }else{
+            res.status(404);
+            res.send('Crime not found');
         }
     });
 });
 
 
-app.get('/', function (req, res) {
-   res.send('CrimeApp');
+app.put('/auth/crime/:crime_id', function(req,res){
+    let Crime = mongoose.model('Crime', require('./model/crime'));
+    let crime = Crime.findOne({_id: req.params.crime_id}, function(err, crime){
+        if(crime){
+            if(crime.facebook_id === req.user.facebook_id){
+                crime.desc = req.body.desc;
+                crime.type = req.body.type;
+
+                crime.save(function(err){
+                    if(err){
+                        res.status(500);
+                        res.send('Internal error');
+                    }else{
+                        res.send(JSON.stringify(crime));
+                    }
+                })
+            }else{
+                res.status(401);
+                res.send('This is not your crime');
+            }
+        }else{
+            res.status(404);
+            res.send('Crime not found');
+        }
+    });
 });
 
 app.listen(3000, function () {

@@ -8,6 +8,8 @@ module.exports = Schema
     {   lat: Number,
         lng: Number,
         date: Number,
-        type: String
+        type: String,
+        desc: String,
+        facebook_id: Number
     }
 );
