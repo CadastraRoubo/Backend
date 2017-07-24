@@ -6,6 +6,7 @@
 let express = require('express');
 let mongoose = require('mongoose');
 let app = express();
+let cors = require('cors');
 let graph = require('fbgraph');
 
 app.use(require('body-parser').urlencoded({ extended: true }));
@@ -13,6 +14,7 @@ app.use(require('body-parser').urlencoded({ extended: true }));
 
 mongoose.connect('mongodb://localhost/crimeapp');
 
+app.use(cors());
 app.get('/crimes', function(req,res){
     console.log('/crimes');
     let CrimeSchema = require('./model/crime');
@@ -26,25 +28,31 @@ app.get('/crimes', function(req,res){
 app.use('/auth/', function(req,res,next){
     let access_token = req.header('access-token');
     let user_id = req.header('user-id');
-    //https://stackoverflow.com/questions/12065492/rest-api-for-website-which-uses-facebook-for-authentication?answertab=votes#tab-top
-    graph.get("/me?access_token=" + access_token, function(err, profile) {
-        if(profile.id === user_id) {
-            let User = mongoose.model('User', require('./model/user'));
-            //weorkweoprktrotgmo
-            User.update({facebook_id: profile.id}, {name: profile.name, email: profile.email}, {
-                upsert: true,
-                setDefaultsOnInsert: true
-            });
-            req.user = {
-                facebook_id: profile.id,
-                name: profile.name
-            };
-            next();
-        }else{
-            res.status(401);
-            res.send('Unauthorized');
-        }
-    });
+    if(access_token && user_id) {
+        console.log("Access_token: ", access_token, " User_id: ", user_id);
+        //https://stackoverflow.com/questions/12065492/rest-api-for-website-which-uses-facebook-for-authentication?answertab=votes#tab-top
+        graph.get("/me?access_token=" + access_token, function (err, profile) {
+            if (profile.id === user_id) {
+                let User = mongoose.model('User', require('./model/user'));
+                //weorkweoprktrotgmo
+                User.update({facebook_id: profile.id}, {name: profile.name, email: profile.email}, {
+                    upsert: true,
+                    setDefaultsOnInsert: true
+                });
+                req.user = {
+                    facebook_id: profile.id,
+                    name: profile.name
+                };
+                next();
+            } else {
+                res.status(401);
+                res.send('Unauthorized');
+            }
+        });
+    }else{
+        res.status(401);
+        res.send('Unauthorized');
+    }
 });
 
 app.post('/auth/crime', function(req,res){
