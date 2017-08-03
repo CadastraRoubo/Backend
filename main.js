@@ -16,7 +16,6 @@ mongoose.connect('mongodb://localhost/crimeapp');
 
 app.use(cors());
 app.get('/crimes', function(req,res){
-    console.log('/crimes');
     let CrimeSchema = require('./model/crime');
     let crime = mongoose.model('Crime', CrimeSchema);
 
@@ -32,7 +31,7 @@ app.use('/auth/', function(req,res,next){
         console.log("Access_token: ", access_token, " User_id: ", user_id);
         //https://stackoverflow.com/questions/12065492/rest-api-for-website-which-uses-facebook-for-authentication?answertab=votes#tab-top
         graph.get("/me?access_token=" + access_token, function (err, profile) {
-            if (profile.id === user_id) {
+            if (profile && profile.id === user_id) {
                 let User = mongoose.model('User', require('./model/user'));
                 //weorkweoprktrotgmo
                 User.update({facebook_id: profile.id}, {name: profile.name, email: profile.email}, {
@@ -60,9 +59,10 @@ app.post('/auth/crime', function(req,res){
     let crime = new Crime(
         {lat: req.body.lat,
             lng: req.body.lng,
-            date: req.body.date,
+            date: Date.now(),
             type: req.body.type,
             desc: req.body.desc,
+            deleted: false,
             facebook_id: req.user.facebook_id,
             });
     crime.save(function(err){
@@ -79,8 +79,10 @@ app.delete('/auth/crime/:crime_id', function(req,res){
     let Crime = mongoose.model('Crime', require('./model/crime'));
     let crime = Crime.findOne({_id: req.params.crime_id}, function(err, crime){
         if(crime){
-            if(crime.facebook_id === req.user.facebook_id){
-                crime.remove(function(err){
+            if(crime.facebook_id == req.user.facebook_id){
+                crime.deleted = true;
+
+                crime.save(function(err){
                     if(err){
                         res.status(500);
                         res.send('Internal error');
@@ -104,7 +106,7 @@ app.put('/auth/crime/:crime_id', function(req,res){
     let Crime = mongoose.model('Crime', require('./model/crime'));
     let crime = Crime.findOne({_id: req.params.crime_id}, function(err, crime){
         if(crime){
-            if(crime.facebook_id === req.user.facebook_id){
+            if(crime.facebook_id == req.user.facebook_id){
                 crime.desc = req.body.desc;
                 crime.type = req.body.type;
 

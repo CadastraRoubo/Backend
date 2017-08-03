@@ -10,6 +10,7 @@ module.exports = Schema
         date: Number,
         type: String,
         desc: String,
+        deleted: Boolean,
         facebook_id: Number
     }
 );
